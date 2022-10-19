@@ -433,8 +433,9 @@ const useCaretPositioning = () => {
 		const matchedEndContainer = range?.endContainer;
 
 		if (
-			matchedEndContainer?.textContent !==
-			range?.startContainer.textContent
+			range?.endContainer?.textContent !==
+				range?.startContainer.textContent ||
+			range?.startOffset !== range?.endOffset
 		)
 			return;
 
@@ -483,8 +484,9 @@ const useCaretPositioning = () => {
 		const matchedEndContainer = range?.endContainer;
 
 		if (
-			matchedEndContainer?.textContent !==
-			range?.startContainer.textContent
+			range?.endContainer?.textContent !==
+				range?.startContainer.textContent ||
+			range?.startOffset !== range?.endOffset
 		)
 			return;
 
@@ -522,10 +524,10 @@ const useCaretPositioning = () => {
 
 		if (
 			range?.endContainer?.textContent !==
-			range?.startContainer.textContent
+				range?.startContainer.textContent ||
+			range?.startOffset !== range?.endOffset
 		)
 			return;
-
 		let newValue = keyDownEvent?.data || compositionEvent?.data;
 		//checking if caret at the end of container or at the beginning
 		if (
