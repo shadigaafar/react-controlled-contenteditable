@@ -6,7 +6,7 @@ Unlike other packages, this is a fully Controlled contenteditable. with ability 
 
 ## Install
 
-### `npm start`
+### `npm i react-controlled-contenteditable`
 
 ## Example
 
