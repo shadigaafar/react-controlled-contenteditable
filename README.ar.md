@@ -23,7 +23,11 @@ function App() {
 	};
 	return (
 		<div className="App">
-			<ContentEditable onChange={handleChange} html={content} />
+			<ContentEditable
+				onChange={handleChange}
+				html={content}
+				tagName="div"
+			/>
 		</div>
 	);
 }
