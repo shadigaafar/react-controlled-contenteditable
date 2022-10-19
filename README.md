@@ -1,8 +1,11 @@
+[بالعربي
+](https://github.com/lovasoa/react-contenteditable)
+
 # React Controlled Contenteditable
 
 Unlike other packages, this is a fully Controlled contenteditable. with ability to navigate through nested formatting elements with arrow keys. and Unlike
 [react-contenteditable
-](https://github.com/lovasoa/react-contenteditable) package, you can use `useState` or whatever with no issues.
+](https://github.com/shadigaafar/react-controlled-contenteditable/blob/main/README.ar.md) package, you can use `useState` or whatever with no issues.
 
 ## Install
 
