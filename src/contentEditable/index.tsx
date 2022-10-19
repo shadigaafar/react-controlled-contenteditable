@@ -1,4 +1,10 @@
-import React, {forwardRef, HTMLAttributes, useRef, memo} from 'react';
+import React, {
+	useEffect,
+	forwardRef,
+	HTMLAttributes,
+	useRef,
+	memo,
+} from 'react';
 import {mergeRefs} from 'react-merge-refs';
 import useCaretPositioning from './useCaretPositioning';
 import fastDeepEqual from 'fast-deep-equal/react';
@@ -41,6 +47,7 @@ const ContentEditable = forwardRef(
 		const {
 			refElement,
 			content,
+			setContent,
 			handleInput,
 			handleKeyDown,
 			handleInputIME,
@@ -88,6 +95,10 @@ const ContentEditable = forwardRef(
 			isComposing.current = false;
 			onCompositionEnd?.(e);
 		};
+
+		useEffect(() => {
+			setContent(html);
+		}, [html]);
 
 		return React.createElement(tagName, {
 			onCompositionStart: _handleCompositionStart,

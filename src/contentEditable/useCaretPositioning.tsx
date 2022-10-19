@@ -797,6 +797,7 @@ const useCaretPositioning = () => {
 	return {
 		refElement,
 		content,
+		setContent,
 		handleKeyDown,
 		handleInput,
 		handleInputIME,
