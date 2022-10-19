@@ -1,14 +1,14 @@
 {
 	"name": "react-controlled-contenteditable",
-	"version": "0.1.0",
+	"version": "0.2.0",
 	"main": "dist/index.js",
 	"files": [
-	  "dist/"
+		"dist/"
 	],
 	"repository": {
 		"type": "git",
 		"url": "https://github.com/shadigaafar/react-controlled-contenteditable"
-	  },
+	},
 	"devDependencies": {
 		"@types/node": "^16.11.60",
 		"@types/react": "^18.0.21",
