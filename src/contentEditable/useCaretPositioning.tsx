@@ -151,9 +151,7 @@ interface CaretPosition {
 
 const useCaretPositioning = () => {
 	const refElement = useRef<HTMLDivElement>(null);
-	const [content, setContent] = useState<string>(
-		'We hope you are enjoying <b>React Controlled Contenteditable</b>, if you find and issue please report it',
-	);
+	const [content, setContent] = useState<string>('');
 	const [caretPosition, setCaretPosition] = useState<CaretPosition>();
 
 	const isPaste = useRef(false);
