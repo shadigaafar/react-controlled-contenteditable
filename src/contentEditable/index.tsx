@@ -50,6 +50,7 @@ const ContentEditable = forwardRef(
 			setContent,
 			handleInput,
 			handleKeyDown,
+			handleKeyUp,
 			handleInputIME,
 			handleCompositionStart,
 			...props
@@ -61,7 +62,7 @@ const ContentEditable = forwardRef(
 				return;
 			}
 			handleInput(e);
-			const htmlContent: string = (e.target as HTMLElement).innerHTML;
+			const htmlContent = (e.target as HTMLElement).innerHTML;
 
 			const evt = Object.assign({}, e, {
 				target: {
@@ -80,6 +81,7 @@ const ContentEditable = forwardRef(
 
 			onKeyDown?.(evt);
 		};
+
 		const _handleCompositionStart = (
 			e: React.CompositionEvent<HTMLElement>,
 		) => {
@@ -97,17 +99,20 @@ const ContentEditable = forwardRef(
 		};
 
 		useEffect(() => {
+			if (!html) return;
 			setContent(html);
-		}, [html]);
+		}, [html, setContent]);
 
 		return React.createElement(tagName, {
 			onCompositionStart: _handleCompositionStart,
 			onCompositionEnd: handleCompositionEnd,
 			onKeyDown: handleKeydown,
+
 			onInput: handleOnChange,
 			dangerouslySetInnerHTML: {__html: content},
 			contentEditable: true,
 			ref: mergeRefs([refElement, ref]),
+			dir: 'auto',
 			...props,
 			...rest,
 		});

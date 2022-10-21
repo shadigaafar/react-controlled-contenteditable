@@ -82,21 +82,6 @@ const matchContainer = (
 	return getNestedNodeByIndexesAndDepth(contentEditable, indexes, depth);
 };
 
-const formattingEls = [
-	'EM',
-	'B',
-	'STRONG',
-	'I',
-	'U',
-	'MARK',
-	'SMALL',
-	'DEL',
-	'INS',
-	'SUB',
-	'TT',
-	'BIG',
-];
-
 const formattingElsAndAnchorElement = [
 	'EM',
 	'B',
@@ -166,7 +151,9 @@ interface CaretPosition {
 
 const useCaretPositioning = () => {
 	const refElement = useRef<HTMLDivElement>(null);
-	const [content, setContent] = useState<string>('');
+	const [content, setContent] = useState<string>(
+		'We hope you are enjoying <b>React Controlled Contenteditable</b>, if you find and issue please report it',
+	);
 	const [caretPosition, setCaretPosition] = useState<CaretPosition>();
 
 	const isPaste = useRef(false);
@@ -243,190 +230,205 @@ const useCaretPositioning = () => {
 		refElement.current?.dispatchEvent(ev);
 	};
 
-	const navigateThroughNestedElementsOnArrowKeys = (
-		arrowDir: 'right' | 'left',
-		e: KeyDownEvent,
-	) => {
-		const sel = document.getSelection();
-		const range = getRange();
-		//TODO : what about startContainer
-		if (!range) return;
-		const matchedEndContainer = range?.endContainer;
+	const navigateThroughNestedElementsOnArrowKeys = useCallback(
+		(arrowDir: 'right' | 'left', e: KeyDownEvent) => {
+			if (
+				refElement.current &&
+				getComputedStyle(refElement.current as Element).direction ===
+					'rtl'
+			) {
+				arrowDir = arrowDir === 'right' ? 'left' : 'right';
+			}
+			const sel = document.getSelection();
+			const range = getRange();
 
-		const getClosetParentWithManyChildNodes = () => {
-			let parentElement = matchedEndContainer as Element;
-			let indexOfEndContainer = Array.prototype.indexOf.call(
-				parentElement?.childNodes,
-				matchedEndContainer,
-			);
+			if (!range) return;
+			const matchedEndContainer = range?.endContainer;
 
-			let i = 0;
-			while (!parentElement?.childNodes[indexOfEndContainer + 1]) {
-				const prevParent = parentElement;
-				if (parentElement?.parentElement)
-					parentElement = parentElement?.parentElement;
-
-				indexOfEndContainer = Array.prototype.indexOf.call(
+			const getClosetParentWithManyChildNodes = () => {
+				let parentElement = matchedEndContainer as Element;
+				let indexOfEndContainer = Array.prototype.indexOf.call(
 					parentElement?.childNodes,
-					prevParent,
+					matchedEndContainer,
 				);
-				if (
-					parentElement.nodeType === 1 &&
-					parentElement?.hasAttribute('contenteditable')
-				) {
-					break;
-				}
-				if (i > 1000) {
-					break; //escape infinite loop
-				}
-			}
-			return {
-				parentElement,
-				focusedContainerIndex: indexOfEndContainer,
-			};
-		};
-		const {parentElement, focusedContainerIndex} =
-			getClosetParentWithManyChildNodes();
-		//case we are not navigating around formatting element or anchor should do nothing;
-		if (range?.endContainer.nodeType === 1) {
-			const nextContainer =
-				range?.endContainer.childNodes[range.endOffset + 1];
-			const hasNextContainer = !!nextContainer;
-			const prevContainer =
-				range?.endContainer.childNodes[range.endOffset - 1];
-			const hasPrevContainer = !!prevContainer;
-			if (
-				(arrowDir === 'right' && !hasNextContainer) ||
-				(arrowDir === 'left' && !hasPrevContainer)
-			) {
-				return;
-			}
-			if (
-				(arrowDir === 'right' &&
-					nextContainer.nodeType === 1 &&
-					!getMainHTMLFormattingOrAnchorElement(nextContainer)) ||
-				(arrowDir === 'left' &&
-					prevContainer.nodeType === 1 &&
-					!getMainHTMLFormattingOrAnchorElement(prevContainer))
-			) {
-				return;
-			}
-		} else {
-			//if text node
-			const nextContainer =
-				parentElement?.childNodes[focusedContainerIndex + 1];
-			const prevContainer =
-				parentElement?.childNodes[focusedContainerIndex - 1];
 
-			if (
-				(arrowDir === 'right' && !nextContainer) ||
-				(arrowDir === 'left' && !prevContainer)
-			) {
-				return;
-			}
-
-			if (
-				(arrowDir === 'right' &&
-					nextContainer?.nodeType === 1 &&
-					(nextContainer as Element).tagName !== 'BR' &&
-					!getMainHTMLFormattingOrAnchorElement(nextContainer)) ||
-				(arrowDir === 'left' &&
-					prevContainer?.nodeType === 1 &&
-					(prevContainer as Element).tagName !== 'BR' &&
-					!getMainHTMLFormattingOrAnchorElement(prevContainer))
-			) {
-				return;
-			}
-		}
-
-		const nextElement = parentElement.childNodes[focusedContainerIndex + 1];
-		const isNextElementBR =
-			(parentElement.childNodes[focusedContainerIndex + 1] as Element)
-				?.tagName === 'BR';
-		if (
-			range &&
-			(matchedEndContainer?.textContent?.length || 0) - 1 ===
-				range?.endOffset &&
-			arrowDir === 'right' &&
-			isNextElementBR
-		) {
-			e.preventDefault();
-			range.setStartAfter(nextElement);
-			range.setEndAfter(nextElement);
-		}
-		//when at the end or start of container
-		if (
-			range &&
-			arrowDir === 'right' &&
-			(matchedEndContainer?.textContent?.length === range?.endOffset ||
-				matchedEndContainer?.nodeType === 1)
-		) {
-			e.preventDefault();
-
-			if (matchedEndContainer?.nodeType === 1) {
-				const container =
-					matchedEndContainer.childNodes[range.endOffset];
-				range.setStart(container, 0);
-				range.setEnd(container, 0);
-			} else {
-				if (!parentElement) return;
-				const nextContainer =
-					parentElement.childNodes[focusedContainerIndex + 1];
-				range.setStart(nextContainer, 0);
-				range.setEnd(nextContainer, 0);
-			}
-
-			sel?.removeAllRanges();
-			sel?.addRange(range);
-		} else if (
-			//at the beginning of container
-			range &&
-			arrowDir === 'left' &&
-			(range?.endContainer.nodeType === 1 ||
-				((range?.endOffset === 1 || range?.endOffset === 0) &&
-					range.endContainer.nodeType === 3))
-		) {
-			e.preventDefault();
-
-			//case text node and at offset 1 move offset to 0 on arrow left
-			if (range?.endOffset === 1 && range.endContainer.nodeType === 3) {
-				range.setStart(range.endContainer, 0);
-				range.setEnd(range.endContainer, 0);
-			} else {
-				let prevNodeContainer =
-					parentElement?.childNodes[focusedContainerIndex - 1];
 				let i = 0;
-				//case prevNode is BR Element
-				if (
-					prevNodeContainer.nodeType === 1 &&
-					(prevNodeContainer as Element).tagName === 'BR'
-				) {
-					range.setStartAfter(prevNodeContainer);
-					range.setEndAfter(prevNodeContainer);
-				} else {
-					//digging for text node
-					while (prevNodeContainer?.nodeType === 1) {
-						if (prevNodeContainer.lastChild) {
-							prevNodeContainer = prevNodeContainer.lastChild;
-						} else {
-							break;
-						}
-						if (i > 1000) {
-							break;
-						}
-					}
+				while (!parentElement?.childNodes[indexOfEndContainer + 1]) {
+					const prevParent = parentElement;
+					if (parentElement?.parentElement)
+						parentElement = parentElement?.parentElement;
 
-					const length = prevNodeContainer?.textContent?.length;
-					if (!length || !prevNodeContainer) return;
-					range.setStart(prevNodeContainer, length);
-					range.setEnd(prevNodeContainer, length);
+					indexOfEndContainer = Array.prototype.indexOf.call(
+						parentElement?.childNodes,
+						prevParent,
+					);
+					if (
+						parentElement.nodeType === 1 &&
+						parentElement?.hasAttribute('contenteditable')
+					) {
+						break;
+					}
+					if (i > 1000) {
+						break; //escape infinite loop
+					}
+				}
+				return {
+					parentElement,
+					focusedContainerIndex: indexOfEndContainer,
+				};
+			};
+			const {parentElement, focusedContainerIndex} =
+				getClosetParentWithManyChildNodes();
+
+			//case we are not navigating around formatting element or anchor should do nothing;
+			if (range?.endContainer.nodeType === 1) {
+				const nextContainer =
+					range?.endContainer.childNodes[range.endOffset + 1];
+				const hasNextContainer = !!nextContainer;
+				const prevContainer =
+					range?.endContainer.childNodes[range.endOffset - 1];
+				const hasPrevContainer = !!prevContainer;
+				if (
+					(arrowDir === 'right' && !hasNextContainer) ||
+					(arrowDir === 'left' && !hasPrevContainer)
+				) {
+					return;
+				}
+				if (
+					(arrowDir === 'right' &&
+						nextContainer.nodeType === 1 &&
+						!getMainHTMLFormattingOrAnchorElement(nextContainer)) ||
+					(arrowDir === 'left' &&
+						prevContainer.nodeType === 1 &&
+						!getMainHTMLFormattingOrAnchorElement(prevContainer))
+				) {
+					return;
+				}
+			} else {
+				//if text node
+				const nextContainer =
+					parentElement?.childNodes[focusedContainerIndex + 1];
+				const prevContainer =
+					parentElement?.childNodes[focusedContainerIndex - 1];
+
+				if (
+					(arrowDir === 'right' && !nextContainer) ||
+					(arrowDir === 'left' && !prevContainer)
+				) {
+					return;
+				}
+
+				if (
+					(arrowDir === 'right' &&
+						nextContainer?.nodeType === 1 &&
+						(nextContainer as Element).tagName !== 'BR' &&
+						!getMainHTMLFormattingOrAnchorElement(nextContainer)) ||
+					(arrowDir === 'left' &&
+						prevContainer?.nodeType === 1 &&
+						(prevContainer as Element).tagName !== 'BR' &&
+						!getMainHTMLFormattingOrAnchorElement(prevContainer))
+				) {
+					return;
 				}
 			}
 
-			sel?.removeAllRanges();
-			sel?.addRange(range);
-		}
-	};
+			const nextElement =
+				parentElement.childNodes[focusedContainerIndex + 1];
+			const isNextElementBR =
+				(parentElement.childNodes[focusedContainerIndex + 1] as Element)
+					?.tagName === 'BR';
+			if (
+				range &&
+				(matchedEndContainer?.textContent?.length || 0) - 1 ===
+					range?.endOffset &&
+				arrowDir === 'right' &&
+				isNextElementBR
+			) {
+				e.preventDefault();
+				range.setStartAfter(nextElement);
+				range.setEndAfter(nextElement);
+			}
+			//when at the end or start of container
+			if (
+				range &&
+				arrowDir === 'right' &&
+				(matchedEndContainer?.textContent?.length ===
+					range?.endOffset ||
+					matchedEndContainer?.nodeType === 1)
+			) {
+				e.preventDefault();
+
+				if (matchedEndContainer?.nodeType === 1) {
+					const container =
+						matchedEndContainer.childNodes[range.endOffset];
+					range.setStart(container, 0);
+					range.setEnd(container, 0);
+				} else {
+					console.log(range.endOffset);
+					if (!parentElement) return;
+					const nextContainer =
+						parentElement.childNodes[focusedContainerIndex + 1];
+					range.setStart(nextContainer, 0);
+					range.setEnd(nextContainer, 0);
+				}
+
+				sel?.removeAllRanges();
+				sel?.addRange(range);
+			} else if (
+				//at the beginning of container
+				range &&
+				arrowDir === 'left' &&
+				(range?.endContainer.nodeType === 1 ||
+					((range?.endOffset === 0 || range.endOffset === 1) &&
+						range.endContainer.nodeType === 3))
+			) {
+				e.preventDefault();
+
+				//case text node and at offset 1 move offset to 0 on arrow left
+				if (
+					range?.endOffset === 1 &&
+					range.endContainer.nodeType === 3
+				) {
+					range.setStart(range.endContainer, 0);
+					range.setEnd(range.endContainer, 0);
+				} else {
+					let prevNodeContainer =
+						parentElement?.childNodes[focusedContainerIndex - 1];
+					let i = 0;
+					//case prevNode is BR Element
+					if (
+						prevNodeContainer.nodeType === 1 &&
+						(prevNodeContainer as Element).tagName === 'BR'
+					) {
+						range.setStartAfter(prevNodeContainer);
+						range.setEndAfter(prevNodeContainer);
+					} else {
+						//digging for text node
+						while (prevNodeContainer?.nodeType === 1) {
+							if (prevNodeContainer.lastChild) {
+								prevNodeContainer = prevNodeContainer.lastChild;
+							} else {
+								break;
+							}
+							if (i > 1000) {
+								break;
+							}
+						}
+
+						const length = prevNodeContainer?.textContent?.length;
+						if (!length || !prevNodeContainer) return;
+						range.setStart(prevNodeContainer, length);
+						range.setEnd(prevNodeContainer, length);
+					}
+				}
+
+				sel?.removeAllRanges();
+				sel?.addRange(range);
+			}
+		},
+		[],
+	);
+
 	const jumpOutsideFormattingElementWhenAtEndContainer = useCallback(() => {
 		const range = getRange();
 		const selection = document.getSelection();
@@ -476,176 +478,193 @@ const useCaretPositioning = () => {
 			selection?.removeAllRanges();
 			selection?.addRange(range);
 		}
-	}, [getRange]);
+	}, []);
 
-	const moveCaretOutsideFormattingElementWhenAtOffsetZeroAndAfterBR = () => {
-		const range = getRange();
-		const selection = document.getSelection();
-		const matchedEndContainer = range?.endContainer;
+	const moveCaretOutsideFormattingElementWhenAtOffsetZeroAndAfterBR =
+		useCallback(() => {
+			const range = getRange();
+			const selection = document.getSelection();
+			const matchedEndContainer = range?.endContainer;
 
-		if (
-			range?.endContainer?.textContent !==
-				range?.startContainer.textContent ||
-			range?.startOffset !== range?.endOffset
-		)
-			return;
+			if (
+				range?.endContainer?.textContent !==
+					range?.startContainer.textContent ||
+				range?.startOffset !== range?.endOffset
+			)
+				return;
 
-		if (!refElement.current || !matchedEndContainer || !range) return;
-		const mainFormattingElement = matchedEndContainer.parentElement;
-		const mainElement = mainFormattingElement?.parentElement;
-		if (
-			getMainHTMLFormattingOrAnchorElement(matchedEndContainer)
-				?.nodeType === 1 &&
-			range.startOffset === 0
-		) {
-			const indexOfMainFormattingElement = Array.prototype.indexOf.call(
-				mainElement?.childNodes,
-				mainFormattingElement,
-			);
-			//set Caret position after html formatting element
-			const prevSibling =
-				mainElement?.childNodes[indexOfMainFormattingElement - 1];
-			if (prevSibling && (prevSibling as Element).tagName === 'BR') {
-				range.setStartAfter(prevSibling);
-				range.setEndAfter(prevSibling);
-				selection?.removeAllRanges();
-				selection?.addRange(range);
-			}
-		}
-	};
-
-	const inputCharManuallyWhenCaretAtStartOrEndTextOrBtwnFormattingElements = (
-		e: React.CompositionEvent | InputEvent,
-	) => {
-		const compositionEvent = e as React.CompositionEvent;
-		const keyDownEvent = e as InputEvent;
-		const sel = getSelection();
-		const range = getRange();
-
-		if (
-			range?.endContainer?.textContent !==
-				range?.startContainer.textContent ||
-			range?.startOffset !== range?.endOffset
-		)
-			return;
-		let newValue = keyDownEvent?.data || compositionEvent?.data;
-		//checking if caret at the end of container or at the beginning
-		if (
-			range &&
-			(range?.endContainer.textContent?.length === range.endOffset ||
-				range?.endContainer.nodeType === 1 ||
-				range.endOffset === 0)
-		) {
-			if (!newValue && !/\s/g.test(newValue)) return;
-			newValue = /\s/g.test(newValue) ? 'white_space_&nbsp;' : newValue;
-
-			e.preventDefault();
-
-			if (range.endContainer.nodeType !== 1) {
-				//it is a node caret at the beginning of container
-				if (range.endOffset === 0) {
-					const content = range.endContainer.textContent;
-					const newContent = newValue + content;
-
-					range.endContainer.nodeValue = newContent;
-
-					range.setStart(range.endContainer, 1);
-					range.setEnd(range.endContainer, 1);
-				} else {
-					//it is a node caret at the end of container
-					const content = range.endContainer.textContent;
-					const newContent = content + newValue;
-
-					range.endContainer.nodeValue = newContent;
-					const endOffset =
-						newValue === 'white_space_&nbsp;'
-							? (content?.length || 0) + 1
-							: newContent.length;
-					range.setStart(range.endContainer, endOffset);
-					range.setEnd(range.endContainer, endOffset);
+			if (!refElement.current || !matchedEndContainer || !range) return;
+			const mainFormattingElement = matchedEndContainer.parentElement;
+			const mainElement = mainFormattingElement?.parentElement;
+			if (
+				getMainHTMLFormattingOrAnchorElement(matchedEndContainer)
+					?.nodeType === 1 &&
+				range.startOffset === 0
+			) {
+				const indexOfMainFormattingElement =
+					Array.prototype.indexOf.call(
+						mainElement?.childNodes,
+						mainFormattingElement,
+					);
+				//set Caret position after html formatting element
+				const prevSibling =
+					mainElement?.childNodes[indexOfMainFormattingElement - 1];
+				if (prevSibling && (prevSibling as Element).tagName === 'BR') {
+					range.setStartAfter(prevSibling);
+					range.setEndAfter(prevSibling);
+					selection?.removeAllRanges();
+					selection?.addRange(range);
 				}
-			} else {
-				const newTextNode = document.createTextNode(newValue);
+			}
+		}, []);
 
-				const isAfterBR =
-					(
-						range?.endContainer.childNodes[
-							range?.endOffset - 1
-						] as Element
-					)?.tagName === 'BR';
-
-				const prev = range?.endContainer.childNodes[
-					range?.endOffset - 1
-				] as Element;
-				const next = range?.endContainer.childNodes[
-					range?.endOffset + 1
-				] as Element;
-
-				let current = range?.endContainer.childNodes[
-					range?.endOffset
-				] as Node;
-
-				const isBetweenFormattingElements =
-					formattingElsAndAnchorElement.includes(prev?.tagName) &&
-					formattingElsAndAnchorElement.includes(next?.tagName);
+	const inputCharManuallyWhenCaretAtStartOrEndTextOrBtwnFormattingElements =
+		useCallback(
+			(e: React.CompositionEvent | InputEvent) => {
+				const compositionEvent = e as React.CompositionEvent;
+				const keyDownEvent = e as InputEvent;
+				const sel = getSelection();
+				const range = getRange();
 
 				if (
-					!current &&
-					(range?.endContainer as HTMLElement).getAttribute(
-						'contenteditable',
-					) === 'true'
+					range?.endContainer?.textContent !==
+						range?.startContainer.textContent ||
+					range?.startOffset !== range?.endOffset
+				)
+					return;
+				let newValue = keyDownEvent?.data || compositionEvent?.data;
+				//checking if caret at the end of container or at the beginning
+				if (
+					range &&
+					(range?.endContainer.textContent?.length ===
+						range.endOffset ||
+						range?.endContainer.nodeType === 1 ||
+						range.endOffset === 0)
 				) {
-					range.insertNode(newTextNode);
-					range.setStart(range.endContainer, 1);
-					range.setEnd(range.endContainer, 1);
-				} else if ((isAfterBR && next) || isBetweenFormattingElements) {
-					//case caret between formatting element or after BR element that has next sibling
-					range.insertNode(newTextNode);
-					range.setStart(newTextNode, 1);
-					range.setEnd(newTextNode, 1);
-				}
-				//case caret before BR element and no next sibling
-				else if (!next && (current as Element)?.tagName === 'BR') {
-					const parent = current.parentElement;
-					parent?.removeChild(current);
-					parent?.append(newTextNode);
-					range.setStart(newTextNode, 1);
-					range.setEnd(newTextNode, 1);
-				} else {
-					let i = 0;
-					// digging for text node
-					while (current?.nodeType === 1) {
-						if (current.firstChild) {
-							current = current.firstChild;
+					if (!newValue && !/\s/g.test(newValue)) return;
+					newValue = /\s/g.test(newValue)
+						? 'white_space_&nbsp;'
+						: newValue;
+
+					e.preventDefault();
+
+					if (range.endContainer.nodeType !== 1) {
+						//it is a node caret at the beginning of container
+						if (range.endOffset === 0) {
+							const content = range.endContainer.textContent;
+							const newContent = newValue + content;
+
+							range.endContainer.nodeValue = newContent;
+
+							range.setStart(range.endContainer, 1);
+							range.setEnd(range.endContainer, 1);
 						} else {
-							break;
+							//it is a node caret at the end of container
+							const content = range.endContainer.textContent;
+							const newContent = content + newValue;
+
+							range.endContainer.nodeValue = newContent;
+							const endOffset =
+								newValue === 'white_space_&nbsp;'
+									? (content?.length || 0) + 1
+									: newContent.length;
+							range.setStart(range.endContainer, endOffset);
+							range.setEnd(range.endContainer, endOffset);
 						}
-						if (i > 1000) {
-							break;
+					} else {
+						const newTextNode = document.createTextNode(newValue);
+
+						const isAfterBR =
+							(
+								range?.endContainer.childNodes[
+									range?.endOffset - 1
+								] as Element
+							)?.tagName === 'BR';
+
+						const prev = range?.endContainer.childNodes[
+							range?.endOffset - 1
+						] as Element;
+						const next = range?.endContainer.childNodes[
+							range?.endOffset + 1
+						] as Element;
+
+						let current = range?.endContainer.childNodes[
+							range?.endOffset
+						] as Node;
+
+						const isBetweenFormattingElements =
+							formattingElsAndAnchorElement.includes(
+								prev?.tagName,
+							) &&
+							formattingElsAndAnchorElement.includes(
+								next?.tagName,
+							);
+
+						if (
+							!current &&
+							(range?.endContainer as HTMLElement).getAttribute(
+								'contenteditable',
+							) === 'true'
+						) {
+							range.insertNode(newTextNode);
+							range.setStart(range.endContainer, 1);
+							range.setEnd(range.endContainer, 1);
+						} else if (
+							(isAfterBR && next) ||
+							isBetweenFormattingElements
+						) {
+							//case caret between formatting element or after BR element that has next sibling
+							range.insertNode(newTextNode);
+							range.setStart(newTextNode, 1);
+							range.setEnd(newTextNode, 1);
 						}
-						i++;
+						//case caret before BR element and no next sibling
+						else if (
+							!next &&
+							(current as Element)?.tagName === 'BR'
+						) {
+							const parent = current.parentElement;
+							parent?.removeChild(current);
+							parent?.append(newTextNode);
+							range.setStart(newTextNode, 1);
+							range.setEnd(newTextNode, 1);
+						} else {
+							let i = 0;
+							// digging for text node
+							while (current?.nodeType === 1) {
+								if (current.firstChild) {
+									current = current.firstChild;
+								} else {
+									break;
+								}
+								if (i > 1000) {
+									break;
+								}
+								i++;
+							}
+							current.nodeValue = newValue + current.nodeValue;
+							range.setStart(current, 1);
+							range.setEnd(current, 1);
+						}
 					}
-					current.nodeValue = newValue + current.nodeValue;
-					range.setStart(current, 1);
-					range.setEnd(current, 1);
+
+					sel?.removeAllRanges();
+					sel?.addRange(range);
+					saveRange();
+					//translate whitespace
+					if (refElement.current?.innerHTML) {
+						refElement.current.innerHTML =
+							refElement.current?.innerHTML.replaceAll(
+								'white_space_&amp;nbsp;',
+								'&nbsp;',
+							);
+					}
+
+					setTimeout(triggerInput, 0);
 				}
-			}
-
-			sel?.removeAllRanges();
-			sel?.addRange(range);
-			saveRange();
-			//translate whitespace
-			if (refElement.current?.innerHTML) {
-				refElement.current.innerHTML =
-					refElement.current?.innerHTML.replaceAll(
-						'white_space_&amp;nbsp;',
-						'&nbsp;',
-					);
-			}
-
-			setTimeout(triggerInput, 0);
-		}
-	};
+			},
+			[saveRange],
+		);
 
 	const correctInputDataContainerIME = useCallback(
 		(e: React.CompositionEvent) => {
@@ -724,13 +743,9 @@ const useCaretPositioning = () => {
 		[caretPosition, getMatchedContainer],
 	);
 
-	const handleOnPaste = (_e: ClipboardEvent) => {
-		isPaste.current = true;
-	};
-
 	const handleInputIME = (e: React.CompositionEvent) => {
-		correctInputDataContainerIME(e);
 		const content = (e.target as HTMLElement).innerHTML;
+		correctInputDataContainerIME(e);
 		saveRange();
 		setContent(content);
 	};
@@ -744,21 +759,29 @@ const useCaretPositioning = () => {
 		restoreCaretPosition();
 	}, [restoreCaretPosition]);
 
-	const handleKeyDown = useCallback((e: KeyDownEvent) => {
-		if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-			navigateThroughNestedElementsOnArrowKeys(
-				e.key === 'ArrowLeft' ? 'left' : 'right',
-				e,
-			);
-		}
+	const handleKeyUp = useCallback((e: React.KeyboardEvent<HTMLElement>) => {},
+	[]);
+	const handleKeyDown = useCallback(
+		(e: KeyDownEvent) => {
+			if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
+				navigateThroughNestedElementsOnArrowKeys(
+					e.key === 'ArrowLeft' ? 'left' : 'right',
+					e,
+				);
+			}
+			if (e.shiftKey && e.key === 'Enter') {
+				setTimeout(
+					moveCaretOutsideFormattingElementWhenAtOffsetZeroAndAfterBR,
+					0,
+				);
+			}
+		},
+		[
+			navigateThroughNestedElementsOnArrowKeys,
+			moveCaretOutsideFormattingElementWhenAtOffsetZeroAndAfterBR,
+		],
+	);
 
-		if (e.shiftKey && e.key === 'Enter') {
-			setTimeout(
-				moveCaretOutsideFormattingElementWhenAtOffsetZeroAndAfterBR,
-				0,
-			);
-		}
-	}, []);
 	const handleCompositionStart = useCallback(
 		(_e: React.CompositionEvent) => {
 			saveRange();
@@ -782,6 +805,10 @@ const useCaretPositioning = () => {
 			jumpOutsideFormattingElementWhenAtEndContainer();
 		};
 
+		const handleOnPaste = (_e: ClipboardEvent) => {
+			isPaste.current = true;
+		};
+
 		el?.addEventListener('paste', handleOnPaste);
 		el?.addEventListener('click', handleOnClick);
 		el?.addEventListener('beforeinput', handleInput);
@@ -792,14 +819,15 @@ const useCaretPositioning = () => {
 			el?.removeEventListener('beforeinput', handleInput);
 		};
 	}, [
-		handleOnPaste,
 		jumpOutsideFormattingElementWhenAtEndContainer,
 		moveCaretOutsideFormattingElementWhenAtOffsetZeroAndAfterBR,
+		inputCharManuallyWhenCaretAtStartOrEndTextOrBtwnFormattingElements,
 	]);
 	return {
 		refElement,
 		content,
 		setContent,
+		handleKeyUp,
 		handleKeyDown,
 		handleInput,
 		handleInputIME,
