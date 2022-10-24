@@ -50,7 +50,6 @@ const ContentEditable = forwardRef(
 			setContent,
 			handleInput,
 			handleKeyDown,
-			handleKeyUp,
 			handleInputIME,
 			handleCompositionStart,
 			...props

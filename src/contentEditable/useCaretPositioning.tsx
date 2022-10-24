@@ -104,31 +104,37 @@ const getRange = () => {
 	return range;
 };
 
+const getFirstTextNode = (element: Node) => {
+	let textNode = element;
+
+	while (textNode?.firstChild) {
+		textNode = textNode.firstChild;
+	}
+
+	return textNode as Text | Node;
+};
 const getAnyMainParentIncluded = (node: Node | HTMLElement, list: string[]) => {
 	let parent: Node | HTMLElement | null = node;
 
-	if (!parent?.parentElement) return;
+	if (!parent?.parentElement) return null;
 
-	let isParentFormattingElement = list.includes(
-		parent.parentElement?.tagName || '',
-	);
+	let isParentAnyOfList = list.includes(parent.parentElement?.tagName || '');
 
-	while (isParentFormattingElement) {
+	while (isParentAnyOfList) {
 		const pare: HTMLElement | null = parent?.parentElement || null;
 		if (
 			list.includes((pare as HTMLElement).tagName) &&
-			!(pare as HTMLElement)?.parentElement?.hasAttribute(
-				'contenteditable',
-			)
+			!(pare as HTMLElement)?.hasAttribute('contenteditable')
 		) {
 			parent = pare;
 		} else {
-			isParentFormattingElement = false;
+			isParentAnyOfList = false;
 		}
 	}
-	if (!list.includes((parent as Element)?.tagName || '')) {
+	if (list.includes((parent as Element)?.tagName || '') === false) {
 		return null;
 	}
+
 	return parent;
 };
 
@@ -136,6 +142,55 @@ const getMainHTMLFormattingOrAnchorElement = (node: Node | HTMLElement) => {
 	return getAnyMainParentIncluded(node, formattingElsAndAnchorElement);
 };
 
+const getNeighboringNode = (node: Node, endOffset: number) => {
+	let prev: Node | null = null;
+	let next: Node | null = null;
+	let current: Node | null = null;
+
+	let parent = node.nodeType === 1 ? node.childNodes[endOffset] : node;
+	let hasNoSibling = true;
+	let i = 0;
+	while (hasNoSibling) {
+		if (next && prev) {
+			hasNoSibling = false;
+			break;
+		}
+
+		if (next === null && parent?.nextSibling) {
+			const indexOfNext = Array.prototype.indexOf.call(
+				parent?.parentElement?.childNodes,
+				parent.nextSibling,
+			);
+			if (!current) {
+				current = parent;
+			}
+
+			next = parent.parentElement?.childNodes[indexOfNext] || null;
+		}
+		if (prev === null && parent?.previousSibling) {
+			const indexOfPrev = Array.prototype.indexOf.call(
+				parent?.parentElement?.childNodes,
+				parent.previousSibling,
+			);
+			if (!current) {
+				current = parent;
+			}
+
+			prev = parent.parentElement?.childNodes[indexOfPrev] || null;
+		}
+
+		parent = parent?.parentElement as Node;
+
+		if ((parent as Element)?.hasAttribute('contenteditable')) {
+			break;
+		}
+		if (i > 1000) {
+			break;
+		}
+		i++;
+	}
+	return {prev, next, current};
+};
 interface CaretPosition {
 	endOffset: number;
 	startOffset: number;
@@ -153,6 +208,8 @@ const useCaretPositioning = () => {
 	const refElement = useRef<HTMLDivElement>(null);
 	const [content, setContent] = useState<string>('');
 	const [caretPosition, setCaretPosition] = useState<CaretPosition>();
+
+	const isCaretAfterBR = useRef(false);
 
 	const isPaste = useRef(false);
 	const saveRange = useCallback(() => {
@@ -240,189 +297,144 @@ const useCaretPositioning = () => {
 			const sel = document.getSelection();
 			const range = getRange();
 
-			if (!range) return;
-			const matchedEndContainer = range?.endContainer;
+			const endContainer = range?.endContainer;
+			const endOffset = range?.endOffset;
+			if (!range || !endContainer || typeof endOffset === 'undefined')
+				return;
 
-			const getClosetParentWithManyChildNodes = () => {
-				let parentElement = matchedEndContainer as Element;
-				let indexOfEndContainer = Array.prototype.indexOf.call(
-					parentElement?.childNodes,
-					matchedEndContainer,
-				);
+			const {prev, next, current} = getNeighboringNode(
+				endContainer,
+				endOffset,
+			);
 
-				let i = 0;
-				while (!parentElement?.childNodes[indexOfEndContainer + 1]) {
-					const prevParent = parentElement;
-					if (parentElement?.parentElement)
-						parentElement = parentElement?.parentElement;
+			if (!prev && !next) return;
+			const isAtEnd =
+				endContainer?.textContent?.length === range?.endOffset;
 
-					indexOfEndContainer = Array.prototype.indexOf.call(
-						parentElement?.childNodes,
-						prevParent,
-					);
-					if (
-						parentElement.nodeType === 1 &&
-						parentElement?.hasAttribute('contenteditable')
-					) {
-						break;
-					}
-					if (i > 1000) {
-						break; //escape infinite loop
-					}
-				}
-				return {
-					parentElement,
-					focusedContainerIndex: indexOfEndContainer,
-				};
-			};
-			const {parentElement, focusedContainerIndex} =
-				getClosetParentWithManyChildNodes();
+			const isAtStart =
+				endOffset === 0 ||
+				endOffset === 1 ||
+				endContainer?.nodeType === 1;
 
-			//case we are not navigating around formatting element or anchor should do nothing;
-			if (range?.endContainer.nodeType === 1) {
-				const nextContainer =
-					range?.endContainer.childNodes[range.endOffset + 1];
-				const hasNextContainer = !!nextContainer;
-				const prevContainer =
-					range?.endContainer.childNodes[range.endOffset - 1];
-				const hasPrevContainer = !!prevContainer;
-				if (
-					(arrowDir === 'right' && !hasNextContainer) ||
-					(arrowDir === 'left' && !hasPrevContainer)
-				) {
-					return;
-				}
-				if (
-					(arrowDir === 'right' &&
-						nextContainer.nodeType === 1 &&
-						!getMainHTMLFormattingOrAnchorElement(nextContainer)) ||
-					(arrowDir === 'left' &&
-						prevContainer.nodeType === 1 &&
-						!getMainHTMLFormattingOrAnchorElement(prevContainer))
-				) {
-					return;
-				}
-			} else {
-				//if text node
-				const nextContainer =
-					parentElement?.childNodes[focusedContainerIndex + 1];
-				const prevContainer =
-					parentElement?.childNodes[focusedContainerIndex - 1];
+			const isCurrentFormattingEls =
+				!!getMainHTMLFormattingOrAnchorElement(endContainer);
+			const isNextFormattingEls = !!getMainHTMLFormattingOrAnchorElement(
+				next as Node,
+			);
+			const isPrevFormattingEls = !!getMainHTMLFormattingOrAnchorElement(
+				prev as Node,
+			);
 
-				if (
-					(arrowDir === 'right' && !nextContainer) ||
-					(arrowDir === 'left' && !prevContainer)
-				) {
-					return;
-				}
+			const isNavigatingThroughFormattingEls =
+				(isCurrentFormattingEls ||
+					isNextFormattingEls ||
+					isPrevFormattingEls) &&
+				(isAtStart || isAtEnd);
 
-				if (
-					(arrowDir === 'right' &&
-						nextContainer?.nodeType === 1 &&
-						(nextContainer as Element).tagName !== 'BR' &&
-						!getMainHTMLFormattingOrAnchorElement(nextContainer)) ||
-					(arrowDir === 'left' &&
-						prevContainer?.nodeType === 1 &&
-						(prevContainer as Element).tagName !== 'BR' &&
-						!getMainHTMLFormattingOrAnchorElement(prevContainer))
-				) {
-					return;
-				}
-			}
-
-			const nextElement =
-				parentElement.childNodes[focusedContainerIndex + 1];
-			const isNextElementBR =
-				(parentElement.childNodes[focusedContainerIndex + 1] as Element)
-					?.tagName === 'BR';
 			if (
-				range &&
-				(matchedEndContainer?.textContent?.length || 0) - 1 ===
-					range?.endOffset &&
+				next &&
+				isAtEnd &&
 				arrowDir === 'right' &&
-				isNextElementBR
+				(next as Element).tagName === 'BR' &&
+				isCaretAfterBR.current === false
 			) {
 				e.preventDefault();
-				range.setStartAfter(nextElement);
-				range.setEndAfter(nextElement);
-			}
-			//when at the end or start of container
-			if (
-				range &&
-				arrowDir === 'right' &&
-				(matchedEndContainer?.textContent?.length ===
-					range?.endOffset ||
-					matchedEndContainer?.nodeType === 1)
-			) {
-				e.preventDefault();
-
-				if (matchedEndContainer?.nodeType === 1) {
-					const container =
-						matchedEndContainer.childNodes[range.endOffset];
-					range.setStart(container, 0);
-					range.setEnd(container, 0);
-				} else {
-					console.log(range.endOffset);
-					if (!parentElement) return;
-					const nextContainer =
-						parentElement.childNodes[focusedContainerIndex + 1];
-					range.setStart(nextContainer, 0);
-					range.setEnd(nextContainer, 0);
-				}
-
+				range.setStartAfter(next);
+				range.setEndAfter(next);
 				sel?.removeAllRanges();
 				sel?.addRange(range);
+				isCaretAfterBR.current = true;
 			} else if (
-				//at the beginning of container
-				range &&
-				arrowDir === 'left' &&
-				(range?.endContainer.nodeType === 1 ||
-					((range?.endOffset === 0 || range.endOffset === 1) &&
-						range.endContainer.nodeType === 3))
+				arrowDir === 'right' &&
+				current?.previousSibling &&
+				isCaretAfterBR.current === true
 			) {
 				e.preventDefault();
-
-				//case text node and at offset 1 move offset to 0 on arrow left
-				if (
-					range?.endOffset === 1 &&
-					range.endContainer.nodeType === 3
-				) {
-					range.setStart(range.endContainer, 0);
-					range.setEnd(range.endContainer, 0);
-				} else {
-					let prevNodeContainer =
-						parentElement?.childNodes[focusedContainerIndex - 1];
-					let i = 0;
-					//case prevNode is BR Element
-					if (
-						prevNodeContainer.nodeType === 1 &&
-						(prevNodeContainer as Element).tagName === 'BR'
-					) {
-						range.setStartAfter(prevNodeContainer);
-						range.setEndAfter(prevNodeContainer);
-					} else {
-						//digging for text node
-						while (prevNodeContainer?.nodeType === 1) {
-							if (prevNodeContainer.lastChild) {
-								prevNodeContainer = prevNodeContainer.lastChild;
-							} else {
-								break;
-							}
-							if (i > 1000) {
-								break;
-							}
-						}
-
-						const length = prevNodeContainer?.textContent?.length;
-						if (!length || !prevNodeContainer) return;
-						range.setStart(prevNodeContainer, length);
-						range.setEnd(prevNodeContainer, length);
-					}
-				}
-
+				range.setStart(current, 0);
+				range.setEnd(current, 0);
 				sel?.removeAllRanges();
 				sel?.addRange(range);
 			}
+
+			if (!isNavigatingThroughFormattingEls) return;
+
+			if (
+				(arrowDir === 'right' && !next) ||
+				(arrowDir === 'left' && !prev)
+			)
+				return;
+
+			if (current && next && arrowDir === 'right' && isAtEnd) {
+				e.preventDefault();
+
+				if (current.nodeType !== 1 || next.nodeType !== 1) {
+					range.setStart(getFirstTextNode(next), 0);
+					range.setEnd(getFirstTextNode(next), 0);
+				} else {
+					range.setStartAfter(current);
+					range.setEndAfter(current);
+				}
+			} else if (
+				current &&
+				arrowDir === 'right' &&
+				range?.endContainer.nodeType === 1
+			) {
+				e.preventDefault();
+				range.setStart(getFirstTextNode(current), 0);
+				range.setEnd(getFirstTextNode(current), 0);
+			}
+
+			if (current && prev && arrowDir === 'left' && isAtStart) {
+				e.preventDefault();
+				const prevLength =
+					prev.nodeType === 1
+						? (prev as Element).childNodes?.length
+						: (prev as Text).length;
+				const prevContainer = prev.childNodes[prevLength - 1];
+
+				if (range.endContainer.nodeType !== 1 && endOffset === 1) {
+					range.setStart(endContainer, 0);
+					range.setEnd(endContainer, 0);
+				} else {
+					if (
+						(current.nodeType !== 1 && prev.nodeType === 1) ||
+						(current?.nodeType === 1 &&
+							prev.nodeType === 1 &&
+							range.endOffset !== 0)
+					) {
+						range.setStart(
+							prevContainer,
+							(prevContainer as Text).length,
+						);
+						range.setEnd(
+							prevContainer,
+							(prevContainer as Text).length,
+						);
+					} else if (
+						current?.nodeType === 1 &&
+						range?.endContainer.nodeType !== 1 &&
+						prev.nodeType === 1
+					) {
+						range.setStartBefore(current);
+						range.setEndBefore(current);
+					} else {
+						if (
+							(prev as Element).tagName === 'BR' &&
+							isCaretAfterBR.current === false
+						) {
+							range.setStartAfter(prev);
+							range.setEndAfter(prev);
+							isCaretAfterBR.current = true;
+						} else {
+							range.setStart(prev, (prev as Text).length);
+							range.setEnd(prev, (prev as Text).length);
+						}
+					}
+				}
+			}
+			sel?.removeAllRanges();
+			sel?.addRange(range);
+			setTimeout(() => (isCaretAfterBR.current = false), 0);
 		},
 		[],
 	);
@@ -430,49 +442,30 @@ const useCaretPositioning = () => {
 	const jumpOutsideFormattingElementWhenAtEndContainer = useCallback(() => {
 		const range = getRange();
 		const selection = document.getSelection();
-		const matchedEndContainer = range?.endContainer;
+		const endContainer = range?.endContainer;
 
 		if (
-			range?.endContainer?.textContent !==
-				range?.startContainer.textContent ||
+			endContainer?.textContent !== range?.startContainer.textContent ||
 			range?.startOffset !== range?.endOffset
 		)
 			return;
 
-		if (!refElement.current || !matchedEndContainer || !range) return;
-		const mainFormattingElement = matchedEndContainer.parentElement;
-		const mainElement = mainFormattingElement?.parentElement;
-		if (
-			getMainHTMLFormattingOrAnchorElement(matchedEndContainer)
-				?.nodeType === 1 &&
-			matchedEndContainer.textContent?.length === range.endOffset
-		) {
-			if (!mainFormattingElement || !mainElement) return;
-			if (mainFormattingElement?.nextSibling) {
-				const indexOfMainFormattingElement =
-					Array.prototype.indexOf.call(
-						mainElement.childNodes,
-						mainFormattingElement,
-					);
-				//set Caret position after html formatting element
-				const nextSibling =
-					mainElement.childNodes[indexOfMainFormattingElement + 1];
+		if (!refElement.current || !endContainer || !range) return;
 
-				if (!nextSibling) return;
-				range.setStart(nextSibling, 0);
-				range.setEnd(nextSibling, 0);
-			} else {
-				const indexOfMainFormattingElement =
-					Array.prototype.indexOf.call(
-						mainElement.childNodes,
-						mainFormattingElement,
-					);
-				range.setStart(mainElement, indexOfMainFormattingElement + 1);
-				range.setEnd(mainElement, indexOfMainFormattingElement + 1);
+		const formattingElement = endContainer.parentElement;
+		if (
+			formattingElement &&
+			getMainHTMLFormattingOrAnchorElement(endContainer)?.nodeType ===
+				1 &&
+			endContainer.textContent?.length === range.endOffset
+		) {
+			if (endContainer.nextSibling && endContainer.previousSibling) {
+				return;
 			}
+			range.setStartAfter(formattingElement);
+			range.setEndAfter(formattingElement);
 
 			range.collapse();
-
 			selection?.removeAllRanges();
 			selection?.addRange(range);
 		}
@@ -482,37 +475,27 @@ const useCaretPositioning = () => {
 		useCallback(() => {
 			const range = getRange();
 			const selection = document.getSelection();
-			const matchedEndContainer = range?.endContainer;
+			const endContainer = range?.endContainer;
 
 			if (
-				range?.endContainer?.textContent !==
+				endContainer?.textContent !==
 					range?.startContainer.textContent ||
 				range?.startOffset !== range?.endOffset
 			)
 				return;
-
-			if (!refElement.current || !matchedEndContainer || !range) return;
-			const mainFormattingElement = matchedEndContainer.parentElement;
-			const mainElement = mainFormattingElement?.parentElement;
+			if (!refElement.current || !endContainer || !range) return;
+			const mainElementFormattingEl =
+				getMainHTMLFormattingOrAnchorElement(endContainer);
 			if (
-				getMainHTMLFormattingOrAnchorElement(matchedEndContainer)
-					?.nodeType === 1 &&
+				(mainElementFormattingEl?.previousSibling as Element)
+					.tagName === 'BR' &&
+				mainElementFormattingEl?.nodeType === 1 &&
 				range.startOffset === 0
 			) {
-				const indexOfMainFormattingElement =
-					Array.prototype.indexOf.call(
-						mainElement?.childNodes,
-						mainFormattingElement,
-					);
-				//set Caret position after html formatting element
-				const prevSibling =
-					mainElement?.childNodes[indexOfMainFormattingElement - 1];
-				if (prevSibling && (prevSibling as Element).tagName === 'BR') {
-					range.setStartAfter(prevSibling);
-					range.setEndAfter(prevSibling);
-					selection?.removeAllRanges();
-					selection?.addRange(range);
-				}
+				range.setStartBefore(mainElementFormattingEl);
+				range.setEndBefore(mainElementFormattingEl);
+				selection?.removeAllRanges();
+				selection?.addRange(range);
 			}
 		}, []);
 
@@ -547,7 +530,7 @@ const useCaretPositioning = () => {
 					e.preventDefault();
 
 					if (range.endContainer.nodeType !== 1) {
-						//it is a node caret at the beginning of container
+						//it is a text node and caret at the beginning of container
 						if (range.endOffset === 0) {
 							const content = range.endContainer.textContent;
 							const newContent = newValue + content;
@@ -557,7 +540,7 @@ const useCaretPositioning = () => {
 							range.setStart(range.endContainer, 1);
 							range.setEnd(range.endContainer, 1);
 						} else {
-							//it is a node caret at the end of container
+							//it is a text node and caret at the end of container
 							const content = range.endContainer.textContent;
 							const newContent = content + newValue;
 
@@ -570,6 +553,7 @@ const useCaretPositioning = () => {
 							range.setEnd(range.endContainer, endOffset);
 						}
 					} else {
+						//case it is a node element
 						const newTextNode = document.createTextNode(newValue);
 
 						const isAfterBR =
@@ -600,9 +584,9 @@ const useCaretPositioning = () => {
 
 						if (
 							!current &&
-							(range?.endContainer as HTMLElement).getAttribute(
+							(range?.endContainer as HTMLElement).hasAttribute(
 								'contenteditable',
-							) === 'true'
+							)
 						) {
 							range.insertNode(newTextNode);
 							range.setStart(range.endContainer, 1);
@@ -627,29 +611,29 @@ const useCaretPositioning = () => {
 							range.setStart(newTextNode, 1);
 							range.setEnd(newTextNode, 1);
 						} else {
-							let i = 0;
-							// digging for text node
-							while (current?.nodeType === 1) {
-								if (current.firstChild) {
-									current = current.firstChild;
-								} else {
-									break;
-								}
-								if (i > 1000) {
-									break;
-								}
-								i++;
+							if (range.endContainer.nodeType === 1) {
+								range.insertNode(newTextNode);
+								range.setStart(newTextNode, 1);
+								range.setEnd(newTextNode, 1);
+							} else {
+								range.endContainer.nodeValue =
+									range.endContainer.nodeValue + newValue;
+								range.setStart(
+									range.endContainer,
+									(range.endContainer as Text).length,
+								);
+								range.setEnd(
+									range.endContainer,
+									(range.endContainer as Text).length,
+								);
 							}
-							current.nodeValue = newValue + current.nodeValue;
-							range.setStart(current, 1);
-							range.setEnd(current, 1);
 						}
 					}
 
 					sel?.removeAllRanges();
 					sel?.addRange(range);
 					saveRange();
-					//translate whitespace
+					// translate whitespace
 					if (refElement.current?.innerHTML) {
 						refElement.current.innerHTML =
 							refElement.current?.innerHTML.replaceAll(
@@ -757,8 +741,6 @@ const useCaretPositioning = () => {
 		restoreCaretPosition();
 	}, [restoreCaretPosition]);
 
-	const handleKeyUp = useCallback((e: React.KeyboardEvent<HTMLElement>) => {},
-	[]);
 	const handleKeyDown = useCallback(
 		(e: KeyDownEvent) => {
 			if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
@@ -767,6 +749,7 @@ const useCaretPositioning = () => {
 					e,
 				);
 			}
+
 			if (e.shiftKey && e.key === 'Enter') {
 				setTimeout(
 					moveCaretOutsideFormattingElementWhenAtOffsetZeroAndAfterBR,
@@ -825,7 +808,6 @@ const useCaretPositioning = () => {
 		refElement,
 		content,
 		setContent,
-		handleKeyUp,
 		handleKeyDown,
 		handleInput,
 		handleInputIME,
