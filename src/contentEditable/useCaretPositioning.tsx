@@ -335,7 +335,7 @@ const useCaretPositioning = () => {
 				next &&
 				isAtEnd &&
 				arrowDir === 'right' &&
-				(next as Element).tagName === 'BR' &&
+				(next as Element)?.tagName === 'BR' &&
 				isCaretAfterBR.current === false
 			) {
 				e.preventDefault();
@@ -488,7 +488,7 @@ const useCaretPositioning = () => {
 				getMainHTMLFormattingOrAnchorElement(endContainer);
 			if (
 				(mainElementFormattingEl?.previousSibling as Element)
-					.tagName === 'BR' &&
+					?.tagName === 'BR' &&
 				mainElementFormattingEl?.nodeType === 1 &&
 				range.startOffset === 0
 			) {
