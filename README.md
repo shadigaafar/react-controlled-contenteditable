@@ -7,6 +7,11 @@ Unlike other packages, this is a fully Controlled contenteditable. with ability 
 [react-contenteditable
 ](https://github.com/lovasoa/react-contenteditable) package, you can use `useState` or whatever with no issues.
 
+## Demo
+
+[Click here
+](https://64d9jc.csb.app/)
+
 ## Install
 
 ### `npm i react-controlled-contenteditable`
