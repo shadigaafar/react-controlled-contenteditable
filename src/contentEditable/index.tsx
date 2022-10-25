@@ -106,7 +106,6 @@ const ContentEditable = forwardRef(
 			onCompositionStart: _handleCompositionStart,
 			onCompositionEnd: handleCompositionEnd,
 			onKeyDown: handleKeydown,
-
 			onInput: handleOnChange,
 			dangerouslySetInnerHTML: {__html: content},
 			contentEditable: true,
