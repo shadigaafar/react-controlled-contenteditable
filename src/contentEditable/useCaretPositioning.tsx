@@ -1,5 +1,6 @@
 import React, {useRef, useState, useCallback, useLayoutEffect} from 'react';
 import {KeyDownEvent} from '.';
+import useUndo from './useUndo';
 
 const getNodeDepthAndIndexes = (
 	node: Node | HTMLElement,
@@ -191,7 +192,7 @@ const getNeighboringNode = (node: Node, endOffset: number) => {
 	}
 	return {prev, next, current};
 };
-interface CaretPosition {
+export interface CaretPosition {
 	endOffset: number;
 	startOffset: number;
 	startContainerPos: {
@@ -212,6 +213,12 @@ const useCaretPositioning = () => {
 	const isCaretAfterBR = useRef(false);
 
 	const isPaste = useRef(false);
+
+	const undoState = useUndo(
+		refElement.current as HTMLElement,
+		caretPosition as CaretPosition,
+	);
+
 	const saveRange = useCallback(() => {
 		const range = getRange();
 		if (range) {
@@ -784,12 +791,13 @@ const useCaretPositioning = () => {
 		const handleOnClick = (_e: MouseEvent) => {
 			moveCaretOutsideFormattingElementWhenAtOffsetZeroAndAfterBR();
 			jumpOutsideFormattingElementWhenAtEndContainer();
+			setTimeout(saveRange, 0);
 		};
 
 		const handleOnPaste = (_e: ClipboardEvent) => {
 			isPaste.current = true;
 		};
-
+		el?.addEventListener('focus', saveRange);
 		el?.addEventListener('paste', handleOnPaste);
 		el?.addEventListener('click', handleOnClick);
 		el?.addEventListener('beforeinput', handleInput);
@@ -800,10 +808,21 @@ const useCaretPositioning = () => {
 			el?.removeEventListener('beforeinput', handleInput);
 		};
 	}, [
+		saveRange,
 		jumpOutsideFormattingElementWhenAtEndContainer,
 		moveCaretOutsideFormattingElementWhenAtOffsetZeroAndAfterBR,
 		inputCharManuallyWhenCaretAtStartOrEndTextOrBtwnFormattingElements,
 	]);
+
+	useLayoutEffect(() => {
+		if (
+			typeof undoState?.html !== 'undefined' &&
+			undoState?.caretPosition
+		) {
+			setContent(undoState?.html);
+			setCaretPosition(undoState?.caretPosition);
+		}
+	}, [undoState]);
 	return {
 		refElement,
 		content,
