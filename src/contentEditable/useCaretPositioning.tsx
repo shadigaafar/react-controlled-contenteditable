@@ -130,7 +130,10 @@ const useCaretPositioning = () => {
 	};
 
 	const navigateThroughNestedElementsOnArrowKeys = useCallback(
-		(arrowDir: 'right' | 'left', e: KeyDownEvent) => {
+		(e: KeyDownEvent) => {
+			let arrowDir =
+				e.key === 'ArrowRight' || e.key === 'ArrowLeft' ? e.key : null;
+			if (!arrowDir) return;
 			if (
 				refElement.current &&
 				getComputedStyle(refElement.current as Element).direction ===
@@ -587,12 +590,7 @@ const useCaretPositioning = () => {
 
 	const handleKeyDown = useCallback(
 		(e: KeyDownEvent) => {
-			if (e.key === 'ArrowRight' || e.key === 'ArrowLeft') {
-				navigateThroughNestedElementsOnArrowKeys(
-					e.key === 'ArrowLeft' ? 'left' : 'right',
-					e,
-				);
-			}
+			navigateThroughNestedElementsOnArrowKeys(e);
 
 			if (e.shiftKey && e.key === 'Enter') {
 				setTimeout(
