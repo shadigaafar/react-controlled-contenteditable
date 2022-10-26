@@ -1,7 +1,7 @@
 import React, {useRef, useState, useCallback, useLayoutEffect} from 'react';
 import {KeyDownEvent} from '.';
 import useUndo from './useUndo';
-import {getNodeDepthAndIndexes, getRange} from './common';
+import {getRange} from './common';
 import useSaveRestoreRange from './useSaveRestoreRange';
 
 const formattingElsAndAnchorElement = [
@@ -660,7 +660,7 @@ const useCaretPositioning = () => {
 			setContent(undoState?.html);
 			setCaretPosition(undoState?.caretPosition);
 		}
-	}, [undoState]);
+	}, [undoState, setCaretPosition]);
 	return {
 		refElement,
 		content,

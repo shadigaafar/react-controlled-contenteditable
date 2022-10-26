@@ -40,7 +40,7 @@ const useSaveRestoreRange = (el: HTMLElement) => {
 	}, []);
 	const saveRange = useCallback(() => {
 		setCaretPosition(getCaretPosition());
-	}, []);
+	}, [getCaretPosition]);
 
 	const getMatchedContainers = useCallback(() => {
 		if (!caretPosition || !el) return {start: null, end: null};
@@ -49,7 +49,7 @@ const useSaveRestoreRange = (el: HTMLElement) => {
 		const start = getMatchedContainer(el, caretPosition.startContainerPos);
 
 		return {start, end};
-	}, [caretPosition]);
+	}, [caretPosition, el]);
 
 	const restoreCaretPosition = useCallback(() => {
 		const sel = document.getSelection();
@@ -77,7 +77,7 @@ const useSaveRestoreRange = (el: HTMLElement) => {
 			sel?.removeAllRanges();
 			sel?.addRange(range);
 		}
-	}, [caretPosition, getMatchedContainer]);
+	}, [caretPosition, getMatchedContainers]);
 
 	useLayoutEffect(() => {
 		const element = el;
@@ -87,7 +87,7 @@ const useSaveRestoreRange = (el: HTMLElement) => {
 		element?.addEventListener('paste', handleOnPaste);
 
 		return () => element?.removeEventListener('paste', handleOnPaste);
-	}, []);
+	}, [el]);
 
 	return {
 		caretPosition,
