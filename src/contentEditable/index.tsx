@@ -1,9 +1,9 @@
 import React, {
-	useEffect,
 	forwardRef,
 	HTMLAttributes,
 	useRef,
 	memo,
+	useLayoutEffect,
 } from 'react';
 import {mergeRefs} from 'react-merge-refs';
 import useCaretPositioning from './useCaretPositioning';
@@ -97,8 +97,8 @@ const Editable = forwardRef(
 			onCompositionEnd?.(e);
 		};
 
-		useEffect(() => {
-			if (!html) return;
+		useLayoutEffect(() => {
+			if (typeof html !== 'string') return;
 			setContent(html);
 		}, [html, setContent]);
 
