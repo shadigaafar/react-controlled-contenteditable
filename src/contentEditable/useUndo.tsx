@@ -1,4 +1,4 @@
-import {useCallback, useEffect, useState} from 'react';
+import {useRef, useCallback, useEffect, useState} from 'react';
 import fastDeepEqual from 'fast-deep-equal/react';
 import useSaveRestoreRange, {CaretPosition} from './useSaveRestoreRange';
 
@@ -13,8 +13,9 @@ const useUndo = (el: HTMLElement) => {
 	const [allChanges, setAllChanges] = useState<State[]>();
 	const [undoState, setUndoState] = useState<State>();
 	const [prevCaretPosition, setPrevCaretPost] = useState<CaretPosition>();
-	const [hasCaretPosChangedByUser, setHasCaretPosChangedByUser] =
-		useState(false);
+
+	useState(false);
+	const hasCaretPosChangedByUser = useRef(false);
 	const {getCaretPosition} = useSaveRestoreRange(el);
 	const detectCaretChange = useCallback(() => {
 		const caretPosition = getCaretPosition();
@@ -30,13 +31,13 @@ const useUndo = (el: HTMLElement) => {
 				caretPosition.endOffset - prevCaretPosition.endOffset,
 			);
 			if (diff > 2) {
-				setHasCaretPosChangedByUser(true);
+				hasCaretPosChangedByUser.current = true;
 				return;
 			}
-			setHasCaretPosChangedByUser(false);
+			hasCaretPosChangedByUser.current = false;
 			return;
 		}
-		setHasCaretPosChangedByUser(true);
+		hasCaretPosChangedByUser.current = true;
 	}, [prevCaretPosition, getCaretPosition]);
 
 	const saveChanges = useCallback(
@@ -101,9 +102,9 @@ const useUndo = (el: HTMLElement) => {
 				if (action === 'isChar') {
 					setPrevCaretPost(getCaretPosition());
 				}
-				if (action === 'isChar' && hasCaretPosChangedByUser) {
+				if (action === 'isChar' && hasCaretPosChangedByUser.current) {
 					action = 'caretPosChangedByUser';
-					setHasCaretPosChangedByUser(false);
+					hasCaretPosChangedByUser.current = false;
 				}
 				saveChanges(action);
 			}
