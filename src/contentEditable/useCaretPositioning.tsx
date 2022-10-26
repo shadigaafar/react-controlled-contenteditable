@@ -119,9 +119,6 @@ const useCaretPositioning = () => {
 		setCaretPosition,
 	} = useSaveRestoreRange(refElement.current as HTMLElement);
 	const isCaretAfterBR = useRef(false);
-
-	const isPaste = useRef(false);
-
 	const undoState = useUndo(refElement.current as HTMLElement);
 
 	const triggerInput = () => {
@@ -633,16 +630,10 @@ const useCaretPositioning = () => {
 			jumpOutsideFormattingElementWhenAtEndContainer();
 		};
 
-		const handleOnPaste = (_e: ClipboardEvent) => {
-			isPaste.current = true;
-		};
-
-		el?.addEventListener('paste', handleOnPaste);
 		el?.addEventListener('click', handleOnClick);
 		el?.addEventListener('beforeinput', handleInput);
 
 		return () => {
-			el?.removeEventListener('paste', handleOnPaste);
 			el?.removeEventListener('click', handleOnClick);
 			el?.removeEventListener('beforeinput', handleInput);
 		};
