@@ -30,7 +30,7 @@ export interface ContentEditableProps extends DivProps {
 	html: string;
 }
 
-const ContentEditable = forwardRef(
+const Editable = forwardRef(
 	(
 		{
 			tagName = 'div',
@@ -123,4 +123,5 @@ const isPropsEqual = (
 ) => {
 	return fastDeepEqual(prevProp, nextProp);
 };
-export default memo(ContentEditable, isPropsEqual);
+const ContentEditable = memo(Editable, isPropsEqual);
+export default ContentEditable;
