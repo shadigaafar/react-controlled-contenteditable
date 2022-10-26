@@ -14,7 +14,6 @@ const useUndo = (el: HTMLElement) => {
 	const [undoState, setUndoState] = useState<State>();
 	const [prevCaretPosition, setPrevCaretPost] = useState<CaretPosition>();
 
-	useState(false);
 	const hasCaretPosChangedByUser = useRef(false);
 	const {getCaretPosition} = useSaveRestoreRange(el);
 	const detectCaretChange = useCallback(() => {
