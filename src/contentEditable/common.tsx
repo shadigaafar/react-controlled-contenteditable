@@ -46,6 +46,40 @@ export const getNodeDepthAndIndexes = (
 	return {depth, indexes: indexes.reverse()};
 };
 
+const getNestedNodeByIndexesAndDepth = (
+	element: Element,
+	indexes: number[],
+	depth: number,
+) => {
+	if (indexes.length > 0 && depth < 0 && !Element) return null;
+
+	let node: Node = element;
+	let currentDepth = 0;
+
+	while (currentDepth !== depth) {
+		node = node?.childNodes[indexes[currentDepth]];
+		currentDepth++;
+
+		if (currentDepth > 10000) {
+			break;
+		}
+	}
+
+	return node;
+};
+
+export const getMatchedContainer = (
+	contentEditable: HTMLElement,
+	startContainerPos: {
+		indexes: number[];
+		depth: number;
+	},
+) => {
+	const {depth, indexes} = startContainerPos;
+
+	return getNestedNodeByIndexesAndDepth(contentEditable, indexes, depth);
+};
+
 export const getRange = () => {
 	const sel = document.getSelection();
 	if (typeof sel?.rangeCount === 'undefined') return;

@@ -2,39 +2,7 @@ import React, {useRef, useState, useCallback, useLayoutEffect} from 'react';
 import {KeyDownEvent} from '.';
 import useUndo from './useUndo';
 import {getNodeDepthAndIndexes, getRange} from './common';
-
-const getNestedNodeByIndexesAndDepth = (
-	element: Element,
-	indexes: number[],
-	depth: number,
-) => {
-	if (indexes.length > 0 && depth < 0 && !Element) return null;
-
-	let node: Node = element;
-	let currentDepth = 0;
-
-	while (currentDepth !== depth) {
-		node = node?.childNodes[indexes[currentDepth]];
-		currentDepth++;
-
-		if (currentDepth > 10000) {
-			break;
-		}
-	}
-
-	return node;
-};
-const matchContainer = (
-	contentEditable: HTMLElement,
-	startContainerPos: {
-		indexes: number[];
-		depth: number;
-	},
-) => {
-	const {depth, indexes} = startContainerPos;
-
-	return getNestedNodeByIndexesAndDepth(contentEditable, indexes, depth);
-};
+import useSaveRestoreRange from './useSaveRestoreRange';
 
 const formattingElsAndAnchorElement = [
 	'EM',
@@ -139,97 +107,22 @@ const getNeighboringNode = (node: Node, endOffset: number) => {
 	}
 	return {prev, next, current};
 };
-export interface CaretPosition {
-	endOffset: number;
-	startOffset: number;
-	startContainerPos: {
-		indexes: number[];
-		depth: number;
-	};
-	endContainerPos: {
-		indexes: number[];
-		depth: number;
-	};
-}
 
 const useCaretPositioning = () => {
 	const refElement = useRef<HTMLDivElement>(null);
 	const [content, setContent] = useState<string>('');
-	const [caretPosition, setCaretPosition] = useState<CaretPosition>();
-
+	const {
+		saveRange,
+		restoreCaretPosition,
+		getMatchedContainers,
+		caretPosition,
+		setCaretPosition,
+	} = useSaveRestoreRange(refElement.current as HTMLElement);
 	const isCaretAfterBR = useRef(false);
 
 	const isPaste = useRef(false);
 
-	const undoState = useUndo(
-		refElement.current as HTMLElement,
-		caretPosition as CaretPosition,
-	);
-
-	const saveRange = useCallback(() => {
-		const range = getRange();
-		if (range) {
-			const startContainerPos = getNodeDepthAndIndexes(
-				range.startContainer,
-				'contenteditable',
-			);
-			const endContainerPos = getNodeDepthAndIndexes(
-				range.endContainer,
-				'contenteditable',
-			);
-			if (!startContainerPos || !endContainerPos) return;
-			setCaretPosition({
-				endOffset: range.endOffset,
-				startOffset: range.startOffset,
-				startContainerPos,
-				endContainerPos,
-			});
-		}
-	}, []);
-
-	const getMatchedContainer = useCallback(() => {
-		if (!caretPosition || !refElement.current)
-			return {start: null, end: null};
-
-		const end = matchContainer(
-			refElement.current,
-			caretPosition.endContainerPos,
-		);
-		const start = matchContainer(
-			refElement.current,
-			caretPosition.startContainerPos,
-		);
-
-		return {start, end};
-	}, [caretPosition]);
-
-	const restoreCaretPosition = useCallback(() => {
-		const sel = document.getSelection();
-
-		const range = new Range();
-
-		if (caretPosition) {
-			const matchedEndContainer = getMatchedContainer()?.end;
-			const matchedStartContainer = getMatchedContainer()?.start;
-
-			if (matchedEndContainer && matchedStartContainer) {
-				range.setStart(
-					matchedStartContainer,
-					caretPosition.startOffset,
-				);
-				range.setEnd(matchedEndContainer, caretPosition.endOffset);
-				if (isPaste.current) {
-					range.setEnd(
-						matchedStartContainer,
-						caretPosition.startOffset,
-					);
-					isPaste.current = false;
-				}
-			}
-			sel?.removeAllRanges();
-			sel?.addRange(range);
-		}
-	}, [caretPosition, getMatchedContainer]);
+	const undoState = useUndo(refElement.current as HTMLElement);
 
 	const triggerInput = () => {
 		const ev = new Event('input', {
@@ -608,7 +501,7 @@ const useCaretPositioning = () => {
 			const range = getRange();
 			const currentEndContainer = range?.endContainer;
 			const currentEndOffset = range?.endOffset;
-			const originalEndContainer = getMatchedContainer()?.end || null;
+			const originalEndContainer = getMatchedContainers()?.end || null;
 			const originalEndOffset = caretPosition?.endOffset;
 
 			//if whole text is being selected do nothing
@@ -676,7 +569,7 @@ const useCaretPositioning = () => {
 				sel?.addRange(range);
 			}
 		},
-		[caretPosition, getMatchedContainer],
+		[caretPosition, getMatchedContainers],
 	);
 
 	const handleInputIME = (e: React.CompositionEvent) => {
@@ -738,13 +631,12 @@ const useCaretPositioning = () => {
 		const handleOnClick = (_e: MouseEvent) => {
 			moveCaretOutsideFormattingElementWhenAtOffsetZeroAndAfterBR();
 			jumpOutsideFormattingElementWhenAtEndContainer();
-			setTimeout(saveRange, 0);
 		};
 
 		const handleOnPaste = (_e: ClipboardEvent) => {
 			isPaste.current = true;
 		};
-		el?.addEventListener('focus', saveRange);
+
 		el?.addEventListener('paste', handleOnPaste);
 		el?.addEventListener('click', handleOnClick);
 		el?.addEventListener('beforeinput', handleInput);
@@ -755,7 +647,6 @@ const useCaretPositioning = () => {
 			el?.removeEventListener('beforeinput', handleInput);
 		};
 	}, [
-		saveRange,
 		jumpOutsideFormattingElementWhenAtEndContainer,
 		moveCaretOutsideFormattingElementWhenAtOffsetZeroAndAfterBR,
 		inputCharManuallyWhenCaretAtStartOrEndTextOrBtwnFormattingElements,

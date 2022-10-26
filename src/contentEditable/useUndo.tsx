@@ -1,6 +1,6 @@
 import {useCallback, useEffect, useState} from 'react';
-import {CaretPosition} from './useCaretPositioning';
 import fastDeepEqual from 'fast-deep-equal/react';
+import useSaveRestoreRange, {CaretPosition} from './useSaveRestoreRange';
 
 interface State {
 	caretPosition: CaretPosition;
@@ -9,14 +9,15 @@ interface State {
 }
 const keys = ['Backspace', 'Paste', 'Enter', 'Delete'];
 
-const useUndo = (el: HTMLElement, caretPosition: CaretPosition) => {
+const useUndo = (el: HTMLElement) => {
 	const [allChanges, setAllChanges] = useState<State[]>();
 	const [undoState, setUndoState] = useState<State>();
 	const [prevCaretPosition, setPrevCaretPost] = useState<CaretPosition>();
 	const [hasCaretPosChangedByUser, setHasCaretPosChangedByUser] =
 		useState(false);
-
+	const {getCaretPosition} = useSaveRestoreRange(el);
 	const detectCaretChange = useCallback(() => {
+		const caretPosition = getCaretPosition();
 		if (
 			caretPosition?.endContainerPos &&
 			prevCaretPosition &&
@@ -36,11 +37,12 @@ const useUndo = (el: HTMLElement, caretPosition: CaretPosition) => {
 			return;
 		}
 		setHasCaretPosChangedByUser(true);
-	}, [prevCaretPosition, caretPosition]);
+	}, [prevCaretPosition, getCaretPosition]);
 
 	const saveChanges = useCallback(
 		(action: string) => {
-			if (!el) return;
+			const caretPos = getCaretPosition();
+			if (!el || !caretPos) return;
 			setAllChanges((prev) => {
 				let prevChanges = [...(prev ? prev : [])];
 				const lastChange = prev ? prev[prev?.length - 1] : null;
@@ -53,14 +55,14 @@ const useUndo = (el: HTMLElement, caretPosition: CaretPosition) => {
 				return [
 					...prevChanges,
 					{
-						caretPosition,
+						caretPosition: caretPos,
 						html: el.innerHTML,
 						action: action,
 					},
 				];
 			});
 		},
-		[el, caretPosition],
+		[el, getCaretPosition],
 	);
 
 	const undo = useCallback(
@@ -97,7 +99,7 @@ const useUndo = (el: HTMLElement, caretPosition: CaretPosition) => {
 						? 'isChar'
 						: e.key;
 				if (action === 'isChar') {
-					setPrevCaretPost(caretPosition);
+					setPrevCaretPost(getCaretPosition());
 				}
 				if (action === 'isChar' && hasCaretPosChangedByUser) {
 					action = 'caretPosChangedByUser';
@@ -112,7 +114,7 @@ const useUndo = (el: HTMLElement, caretPosition: CaretPosition) => {
 			saveChanges,
 			undo,
 			setPrevCaretPost,
-			caretPosition,
+			getCaretPosition,
 			hasCaretPosChangedByUser,
 		],
 	);
