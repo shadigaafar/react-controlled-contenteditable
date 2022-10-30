@@ -10,6 +10,17 @@
 
 ### `npm i react-controlled-contenteditable`
 
+## الخواص
+
+| الخاصية                           | الوصف                                                  | النوع     |
+| --------------------------------- | ------------------------------------------------------ | --------- |
+| String                            | **مطلوبة:** نص HTML الداخلي للعنصر القابل للتحرير      | html      |
+| (e: ContentEditableEvent) => void | **مطلوبة:** يتم استدعاؤها حينما تتغير قيمة `innerHTML` | onChange  |
+| (e: KeyDownEvent) => void         | يتم استدعاؤها حينما يتم الضغط على مفاتح ما.            | onKeyDown |
+| any                               | خواص أخرى مثل، style، ref وإلخ ....                    | البقية... |
+
+ملاحظة: نوع `KeyDownEvent` يختلف عن `React.KeyboardEvent` من حيث أن الأول يأتي مع `isComposing` على عكس الأخير.
+
 ## مثال
 
 ```javascript

@@ -16,6 +16,17 @@ Unlike other packages, this is a fully Controlled contenteditable. with ability 
 
 ### `npm i react-controlled-contenteditable`
 
+## Props
+
+| prop      | description                                       | type                              |
+| --------- | ------------------------------------------------- | --------------------------------- |
+| html      | **required:** innerHTML of the editable element   | String                            |
+| onChange  | **required:** called whenever `innerHTML` changes | (e: ContentEditableEvent) => void |
+| onKeyDown | called whenever a key is pressed                  | (e: KeyDownEvent) => void         |
+| ...rest   | any other props you like, ref, style and etc...   | any                               |
+
+Note: `KeyDownEvent` type differs from `React.KeyboardEvent` in which the first comes with an extra property `isComposing` while the latter don't.
+
 ## Example
 
 ```javascript
